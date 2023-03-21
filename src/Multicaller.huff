@@ -1,0 +1,145 @@
+#define function multicall(bytes[], address[]) nonpayable returns (bytes[])
+
+#define macro MAIN() = takes(0) returns(0) {
+    0x00 calldataload
+    0xE0 shr
+
+    // Function signature dispatch
+    __FUNC_SIG(multicall) eq multicall jumpi
+
+    multicall:
+        MULTICALL()
+}
+
+#define macro MULTICALL() = takes(0) returns(0) {
+    0x00 // [res_len]
+    0x40 // [res_offsets_ptr, res_len]
+    0x00 // [res_data_ptr, res_offsets_ptr, res_len]
+
+    0x04 calldataload
+    0x04 add // [calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+    0x24 calldataload
+    0x04 add // [targets_offset, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+    dup1 calldataload // [targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+    dup3 calldataload // [calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+    // Prepare returning bytes[] memory array (setting array offset, size, array content offset)
+    0x20 0x00 mstore
+    dup1 0x20 mstore // mem: [bytes_arr_offset, bytes_arr_len]
+    dup6 // [res_offsets_ptr, ...]
+    dup2 0x20 mul
+    add // [res_offsets_ptr + 0x20 * calldatas_length, ...]
+    swap5
+    pop
+
+    dup4 // [calldatas_offset, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+    0x20 add // [bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+    dup1 // [bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+    // loop start
+
+    loop:
+
+        /* Loading calldatas[i] into memory */
+
+        dup1
+        calldataload // [bytes[i]_offset, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup1 // [bytes[i]_offset, bytes[i]_offset, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup4 // [bytes_offsets, bytes[i]_offset, bytes[i]_offset, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        add  // [bytes[i]_ptr, bytes[i]_offset, bytes_offsets, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+        calldataload // [bytes[i]_len, bytes[i]_offset, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        swap1 // [bytes[i]_offset, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup4  // [bytes_offsets, bytes[i]_offset, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        add   // [bytes[i]_len_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        0x20 add // [bytes[i]_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        
+        dup2
+        swap1 // [bytes[i]_ptr, bytes[i]_len, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+        dup10 calldatacopy // [bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup8 // [mem_calldata_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+        0x00 swap2
+        0x00 swap2 // [mem_calldata_ptr, bytes[i]_len, 0x00, 0x00, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+
+        /* Loading targets[i] onto stack */
+
+        dup9 // [targets_len_ptr, mem_calldata_ptr, bytes[i]_len, 0x00, 0x00, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        0x20 add // [targets[i]_ptr, mem_calldata_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup1 // [targets[i]_ptr, targets[i]_ptr, mem_calldata_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        swap10
+        pop
+        calldataload // [targets[i], mem_calldata_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+
+        /* Loading CALL args onto stack */
+
+        0x00 swap1 // [targets[i], 0x00, mem_calldata_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        gas
+        call // [success, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        iszero err jumpi
+
+
+        /* Loading call result into memory */
+
+        // Saving offset value
+        0x40 // [res_offsets_root_ptr, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup8 // [res_data_ptr, res_offsets_root_ptr, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        sub // [offset_to_res_bytes[i], bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup9 // [res_offsets_ptr, offset_to_res_bytes[i], bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        mstore // [bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+        // Updating offset pointer
+        dup8
+        0x20 add
+        swap8
+        pop // [bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+        returndatasize // [ret_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup1 // [ret_len, ret_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup1 // [ret_len, ret_len, ret_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup10 // [res_data_ptr, ret_len, ret_len, ret_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        mstore // [ret_len, ret_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        
+        0x00 // [0x00, ret_len, ret_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup10 // [res_data_ptr, 0x00, ret_len, ret_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        0x20 add
+        returndatacopy // [ret_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+        // Updating res data pointer
+        dup8 // [res_data_ptr, ret_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        swap1 // [ret_len, res_data_ptr, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        
+        // Rounding ret_len up to 32-multiple
+        0x3f add
+        add // [res_data_ptr + ret_len + 0x3f, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        0xffffffffffffffe0 and // [(res_data_ptr + ret_len + 0x3f) & 0xffffffffffffffe0, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        swap7
+        pop // [bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+        // Iteration
+
+        dup3 // [calldatas_length, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        0x01 swap1 // [calldatas_length, 0x01, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        sub // [calldatas_length - 1, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+        // [calldatas_length - 1 == 0, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup1 0x00 eq fin jumpi // jump if calldatas_length == 0
+
+        swap3 // [calldatas_length, bytes[0]_offset, bytes_offsets, calldatas_length - 1, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        pop // [bytes[0]_offset, bytes_offsets, calldatas_length - 1, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+        0x20 add // [bytes[1]_offset, bytes_offsets, calldatas_length - 1, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+        loop jump
+
+    fin:
+        dup8 // [res_data_ptr, ...]
+        0x00 return
+    err:
+        0x00 0x00 return
+}
