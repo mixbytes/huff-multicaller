@@ -7,6 +7,9 @@
     // Function signature dispatch
     __FUNC_SIG(multicall) eq multicall jumpi
 
+    // Case when function signature is not matched
+    0x00 0x00 revert
+
     multicall:
         MULTICALL()
 }
@@ -24,6 +27,12 @@
     dup1 calldataload // [targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
 
     dup3 calldataload // [calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+
+    // Check if calldatas.length == target.length
+    dup2 // [targets_len, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+    dup2 // [calldatas_length, targets_len, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+    eq
+    iszero err jumpi
 
     // Prepare returning bytes[] memory array (setting array offset, size, array content offset)
     0x20 0x00 mstore
@@ -69,16 +78,16 @@
         /* Loading targets[i] onto stack */
 
         dup9 // [targets_len_ptr, mem_calldata_ptr, bytes[i]_len, 0x00, 0x00, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
-        0x20 add // [targets[i]_ptr, mem_calldata_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
-        dup1 // [targets[i]_ptr, targets[i]_ptr, mem_calldata_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        0x20 add // [targets[i]_ptr, mem_calldata_ptr, bytes[i]_len, 0x00, 0x00, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        dup1 // [targets[i]_ptr, targets[i]_ptr, mem_calldata_ptr, bytes[i]_len, 0x00, 0x00, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
         swap10
         pop
-        calldataload // [targets[i], mem_calldata_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        calldataload // [targets[i], mem_calldata_ptr, bytes[i]_len, 0x00, 0x00, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
 
 
         /* Loading CALL args onto stack */
 
-        0x00 swap1 // [targets[i], 0x00, mem_calldata_ptr, bytes[i]_len, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
+        0x00 swap1 // [targets[i], 0x00, mem_calldata_ptr, bytes[i]_len, 0x00, 0x00, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
         gas
         call // [success, bytes[0]_offset, bytes_offsets, calldatas_length, targets_len, targets_len_ptr, calldatas_offset, res_data_ptr, res_offsets_ptr, res_len]
         iszero err jumpi
@@ -141,5 +150,5 @@
         dup8 // [res_data_ptr, ...]
         0x00 return
     err:
-        0x00 0x00 return
+        0x00 0x00 revert
 }
